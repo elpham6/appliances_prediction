@@ -225,13 +225,14 @@ def mean_squared_error(y_true, y_pred):
     Returns:
     float: The mean squared error.
     """
-    # Convert inputs to numpy arrays to ensure proper element-wise operations
+    # Convert inputs to numpy arrays 
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
     
     # Calculate the mean squared error
     mse = np.mean((y_true - y_pred) ** 2)
     return mse
+
 actual = Y_test
 
 # Calculate MSE for each model
@@ -240,7 +241,6 @@ mse_naive = mean_squared_error(actual, naive)
 mse_drift = mean_squared_error(actual, drift)
 mse_simple = mean_squared_error(actual, simple_forecast)
 mse_exp = mean_squared_error(actual, exp_forecast)
-#mse_sarima = mean_squared_error(actual, sarima_forecast)
 
 # Print MSE values
 print("MSE - Average:", mse_avg)
@@ -248,40 +248,47 @@ print("MSE - Naive:", mse_naive)
 print("MSE - Drift:", mse_drift)
 print("MSE - Simple Smoothing:", mse_simple)
 print("MSE - Exponential Smoothing:", mse_exp)
-#print("MSE - SARIMA:", mse_sarima)
 
 #%%
 ###### Regression ######
 from sklearn.metrics import mean_squared_error, r2_score
 from statsmodels.stats.stattools import durbin_watson
-from statsmodels.graphics.tsaplots import plot_acf
-# Remove features by backwards selection using VIF
+# Remove features by backwards selection
 X_selected_train = X_train[selected_features]
 X_selected_test = X_test[selected_features]
 # Fit the model
 model = sm.OLS(Y_train, sm.add_constant(X_selected_train)).fit()
-
 # One-step ahead prediction
 predictions = model.predict(sm.add_constant(X_selected_test))
-
 # Model Evaluation
 mse = mean_squared_error(Y_test, predictions)
 rmse = np.sqrt(mse)
 r2 = r2_score(Y_test, predictions)
-
 print(model.summary())
 print(f"RMSE: {rmse}, R-squared: {r2}")
 
 # ACF of Residuals and Q-Value
 residuals = Y_test - predictions
-plot_acf(residuals, lags=40)
-plot_pacf(residuals, lags=40)
+ACF_PACF_Plot(residuals, 50)
 plt.show()
 
 # Durbin-Watson Test for autocorrelation (approximate Q-value)
 dw = durbin_watson(residuals)
 print(f"Durbin-Watson statistic: {dw}")
 
+# Calculate Q and Q-critical
+acf_res = acf(residuals, nlags=30)
+Q = len(Y_train)*np.sum(np.square(acf_res[30:]))
+DOF = 30
+alfa = 0.05
+from scipy.stats import chi2
+chi_critical = chi2.ppf(1-alfa, DOF)
+print("Q = ", Q)
+print("Q* = ", chi_critical)
+if Q< chi_critical:
+    print("The residual is white ")
+else:
+    print("The residual is NOT white ")
 # Variance and Mean of the Residuals
 var_res = np.var(residuals)
 mean_res = np.mean(residuals)
@@ -297,7 +304,28 @@ plt.show()
 #%%
 ##### ARMA/ARIMA/SARIMA/Multiplicative ######
 
+### Order Determination ###
+# GPAC Table #
+acf1 = acf(Y_train, nlags=50)
+gpac_prelim = create_gpac_table(acf1, 12, 12)
+# Possibly AR(1) or ARMA(1, 10) or AR(8) or ARMA(8, 10)
 
+# ACF/PACF
+ACF_PACF_Plot(Y_train, lags=50)
+# ACF/PACF shows AR model (tails off, cuts off after lag 1)
+# So probably AR(1), but we can test a couple of models
+#%%
+### Estimate Parameters ###
+p = 8 # AR order
+q = 10  # MA order
+arma = sm.tsa.ARIMA(Y_train, order=(p, 0, q)).fit()
+print(arma.summary())
+res_arma = arma.resid
+ACF_PACF_Plot(res_arma, 50)
+
+#%% 
+from tools import compute_and_plot_acf
+compute_and_plot_acf(res_arma)
 #%%
 ##### Forecast Function ######
 
