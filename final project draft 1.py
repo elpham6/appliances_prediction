@@ -316,22 +316,129 @@ ACF_PACF_Plot(Y_train, lags=50)
 # So probably AR(1), but we can test a couple of models
 #%%
 ### Estimate Parameters ###
-p = 8 # AR order
-q = 10  # MA order
+p = 1 # AR order
+q = 0  # MA order
 arma = sm.tsa.ARIMA(Y_train, order=(p, 0, q)).fit()
 print(arma.summary())
 res_arma = arma.resid
 ACF_PACF_Plot(res_arma, 50)
 
-#%% 
-from tools import compute_and_plot_acf
-compute_and_plot_acf(res_arma)
+#%%
+# Choose best model by AIC
+# import itertools
+
+# # Define the p and q ranges to test
+# p = range(1, 11)  
+# q = range(0, 11)  
+
+# # Generate all different combinations of p, q
+# pq = list(itertools.product(p, q))
+
+# best_aic = float("inf")
+# best_order = None
+# best_model = None
+
+# for order in pq:
+#     try:
+#         model = sm.tsa.ARIMA(Y_train, order=(order[0], 0, order[1])).fit()
+#         if model.aic < best_aic:
+#             best_aic = model.aic
+#             best_order = order
+#             best_model = model
+#     except:  # Handle the case where the model fails to converge
+#         continue
+
+# print(f'Best ARMA{best_order} AIC: {best_aic}')
+
 #%%
 ##### Forecast Function ######
+# def forecast_function(history, order, seasonal_order, forecast_periods):
+#     """
+#     Forecast future values using a SARIMA model.
+    
+#     Parameters:
+#     history (array-like): The time series data to fit the SARIMA model.
+#     order (tuple): The (p, d, q) order of the model for the number of AR parameters, differences, and MA parameters.
+#     seasonal_order (tuple): The (P, D, Q, s) seasonal order of the model.
+#     forecast_periods (int): Number of periods to forecast forward.
+    
+#     Returns:
+#     array: Forecasted values.
+#     """
+#     # Fit the SARIMA model
+#     model = sm.tsa.SARIMAX(history, order=order, seasonal_order=seasonal_order, enforce_stationarity=False, enforce_invertibility=False)
+#     model_fit = model.fit(disp=False)
+    
+#     # Make forecast
+#     forecast = model_fit.forecast(steps=forecast_periods)
+    
+#     return forecast
+
+# import statsmodels.api as sm
+
+# def forecast_arima(history, const, ar1_coeff, periods):
+#     """
+#     Forecast future values using an ARIMA(1, 0, 0) model.
+
+#     Parameters:
+#     history (list or array-like): The historical time series data.
+#     const (float): The constant term of the ARIMA model.
+#     ar1_coeff (float): The coefficient for the AR(1) term.
+#     periods (int): The number of future periods to forecast.
+
+#     Returns:
+#     list: Forecasted values for the specified number of periods.
+#     """
+#     # Initialize the forecast list with historical data
+#     forecast = list(history)
+
+#     # Generate forecasts
+#     for _ in range(periods):
+#         # The forecast for the next period is based on the previous value and the model's parameters
+#         next_forecast = const + ar1_coeff * forecast[-1]
+#         forecast.append(next_forecast)
+
+#     # Return only the forecasted values, not the historical data
+#     return forecast[-periods:]
+
 
 #%%
 ##### Residual Analysis ######
+## Whiteness Chi-square Test ##
+from statsmodels.stats.diagnostic import acorr_ljungbox
+ljung_box_result = acorr_ljungbox(res_arma, lags=[50])  
+print(ljung_box_result)
+# Calculate Q and Q-critical
+acf_res1 = acf(res_arma, nlags=30)
+Q = len(Y_train)*np.sum(np.square(acf_res1[30:]))
+DOF = 30 - 1
+alfa = 0.05
+from scipy.stats import chi2
+chi_critical = chi2.ppf(1-alfa, DOF)
+print("Q = ", Q)
+print("Q* = ", chi_critical)
+if Q< chi_critical:
+    print("The residual is white ")
+else:
+    print("The residual is NOT white ")
+    
+#%%
+# Variance of error
+print("Variance of the errors:", arma.resid.var())
 
+# Covariance matrix of the parameters
+print("Covariance matrix of the parameters:")
+print(arma.cov_params())
+
+#%%
+## Mean of Residuals ##
+mean_residuals = res_arma.mean()
+print("Mean of the residuals:", mean_residuals)
+# unbiased, close to 0
+#%%
+## Confidence Interval ##
+conf_int = arma.conf_int()
+print(conf_int)
 #%%
 ##### LSTM ######
 
